@@ -1,0 +1,103 @@
+#version 450
+
+/////////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+/////////////////////////////////////////////////////////////////////////////////////
+#define MAX_POINT_LIGHTS 10
+#define MAX_SPOT_LIGHTS 10
+
+const vec2 OFFSETS[6] = vec2[](
+  vec2(-1.0, -1.0),
+  vec2(-1.0, 1.0),
+  vec2(1.0, -1.0),
+  vec2(1.0, -1.0),
+  vec2(-1.0, 1.0),
+  vec2(1.0, 1.0)
+);
+/////////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+/////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////
+// VERTEX OUTPUT
+/////////////////////////////////////////////////////////////////////////////////////
+layout(location = 0) out vec2 fragOffset;
+/////////////////////////////////////////////////////////////////////////////////////
+// VERTEX OUTPUT
+/////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+// DESCRIPTOR SET 0 : GLOBAL
+/////////////////////////////////////////////////////////////////////////////////////
+struct PointLight
+{
+	vec4 position;     // position x,y,z
+	vec4 color;        // color r=x, g=y, b=z, a=intensity
+};
+
+struct SpotLight
+{
+	vec4 position;     // position x,y,z
+	vec4 color;        // color r=x, g=y, b=z, a=intensity
+	vec4 direction;    // direction x, y, z
+	vec4 cutOffs;      // CutOffs x=innerCutoff y=outerCutoff
+
+};
+
+struct DirectionalLight
+{
+	vec4 direction;    // direction x, y, z, w=ambientStrength
+	vec4 color;        // color r=x, g=y, b=z, a=intensity
+};
+
+struct EditorCameraData
+{
+	mat4 projectionMatrix;
+	mat4 viewMatrix;
+	mat4 inverseViewMatrix;
+};
+
+layout(set = 0, binding = 0) uniform GlobalUbo
+{
+	EditorCameraData cameraData;
+
+	DirectionalLight directionalLightData;
+
+	PointLight pointLights[MAX_POINT_LIGHTS];
+	SpotLight spotLights[MAX_SPOT_LIGHTS];
+	int numOfActivePointLights;
+	int numOfActiveSpotLights;
+}ubo;
+/////////////////////////////////////////////////////////////////////////////////////
+// DESCRIPTOR SET 0 : GLOBAL
+/////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////
+// CONSTANT PUSH : LIGHT OBJECT
+/////////////////////////////////////////////////////////////////////////////////////
+layout(push_constant) uniform Push 
+{
+	vec4 position;
+	vec4 color;
+	float radius;
+}push;
+/////////////////////////////////////////////////////////////////////////////////////
+// CONSTANT PUSH : LIGHT OBJECT
+/////////////////////////////////////////////////////////////////////////////////////
+
+void main()
+{
+	fragOffset = OFFSETS[gl_VertexIndex];
+
+	vec3 cameraRightWorldSpace = {ubo.cameraData.viewMatrix[0][0], ubo.cameraData.viewMatrix[1][0], ubo.cameraData.viewMatrix[2][0]};
+	vec3 cameraUpWorldSpace = {ubo.cameraData.viewMatrix[0][1], ubo.cameraData.viewMatrix[1][1], ubo.cameraData.viewMatrix[2][1]};
+
+	vec3 lightWorldSpace = push.position.xyz
+	+ push.radius * fragOffset.x * cameraRightWorldSpace
+	+ push.radius * fragOffset.y * cameraUpWorldSpace;
+
+	gl_Position = ubo.cameraData.projectionMatrix * ubo.cameraData.viewMatrix * vec4(lightWorldSpace, 1.0f);
+}
