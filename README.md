@@ -6,7 +6,9 @@ Worked on this project to implment different graphic techniques using Vulkan to 
 
 ## How to run
 
-- Run "VulkanGameEngine.exe"
+- Run "GenerateProjects_Windows_VS2022.bat" to generate solution file
+- Open "VulkanGameEngine.sln" solution
+- Press f5 to run
 
 ## How to use
 
