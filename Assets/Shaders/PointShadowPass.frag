@@ -74,6 +74,7 @@ layout(set = 0, binding = 0) uniform GlobalUbo
 
 void main()
 {
-	float dist = length(fragPos.xyz - globalUbo.pointLights[int(liCount)].position.xyz);
+	int lightIndex = int(liCount);
+	float dist = length(fragPos.xyz - globalUbo.pointLights[lightIndex].position.xyz);
 	outFragColor = dist;
 }

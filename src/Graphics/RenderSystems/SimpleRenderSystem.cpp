@@ -1,4 +1,5 @@
 #include "SimpleRenderSystem.h"
+#include "../../Instrumentation.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -74,6 +75,7 @@ SimpleRenderSystem::~SimpleRenderSystem()
 
 void SimpleRenderSystem::RenderShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO)
 {
+	PROFILE_FUNCTION();
 	UpdateShadowPassBuffer(globalUBO);
 
 	VkClearValue clearValues[2];
@@ -131,6 +133,7 @@ void SimpleRenderSystem::RenderShadowPass(FrameInfo frameInfo, GlobalUBO& global
 
 void SimpleRenderSystem::RenderPointShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO)
 {
+	PROFILE_FUNCTION();
 	VkViewport viewport{};
 	viewport.width = (float)m_PointShadowPass.width;
 	viewport.height = (float)m_PointShadowPass.height;
@@ -146,7 +149,7 @@ void SimpleRenderSystem::RenderPointShadowPass(FrameInfo frameInfo, GlobalUBO& g
 	vkCmdSetScissor(frameInfo.commandBuffer, 0, 1, &scissor);
 
 
-	for (int i = 0; i < globalUBO.numOfActivePointLights; i++)
+	for (uint32_t i = 0; i < globalUBO.numOfActivePointLights; i++)
 	{
 		m_PointLightCount = i;
 		for (uint32_t face = 0; face < 6; face++) {
@@ -166,6 +169,7 @@ void SimpleRenderSystem::RenderPointShadowPass(FrameInfo frameInfo, GlobalUBO& g
 
 void SimpleRenderSystem::RenderMainPass(FrameInfo frameInfo)
 {
+	PROFILE_FUNCTION();
 	m_SpotShadowLightProjectionsBuffer->writeToBuffer(&m_SpotShadowLightProjectionsUBO);
 	m_SpotShadowLightProjectionsBuffer->flush();
 
@@ -752,7 +756,7 @@ void SimpleRenderSystem::PreparePointShadowCubeMaps()
 	sampler.magFilter = VK_FILTER_LINEAR;
 	sampler.minFilter = VK_FILTER_LINEAR;
 	sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	sampler.addressModeV = sampler.addressModeU;
 	sampler.addressModeW = sampler.addressModeU;
 	sampler.mipLodBias = 0.0f;
@@ -762,8 +766,8 @@ void SimpleRenderSystem::PreparePointShadowCubeMaps()
 	sampler.maxLod = 1.0f;
 	sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
-	sampler.maxAnisotropy = m_Device.GetPhysicalDeviceProperties().limits.maxSamplerAnisotropy;
-	sampler.anisotropyEnable = VK_TRUE;
+	//sampler.maxAnisotropy = m_Device.GetPhysicalDeviceProperties().limits.maxSamplerAnisotropy;
+	//sampler.anisotropyEnable = VK_TRUE;
 
 
 	if (vkCreateSampler(m_Device.device(), &sampler, nullptr, &m_PointShadowCubeMaps.cubeMapSampler))
@@ -854,115 +858,104 @@ void SimpleRenderSystem::PreparePointShadowPassRenderPass()
 
 void SimpleRenderSystem::PreparePointShadowPassFramebuffers()
 {
+	m_PointShadowPass.width = m_PointShadowMapSize;
+	m_PointShadowPass.height = m_PointShadowMapSize;
+
+	// Color attachment
+	VkImageCreateInfo imageCreateInfo{};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.format = m_PointShadowPassImageFormat;
+	imageCreateInfo.extent.width = m_PointShadowPass.width;
+	imageCreateInfo.extent.height = m_PointShadowPass.height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	// Image of the framebuffer is blit source
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+
+
+	VkCommandBuffer layoutCmd = m_Device.beginSingleTimeCommands();
+
+	// Depth stencil attachment
+	imageCreateInfo.format = m_PointShadowPassDepthFormat;
+	imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
+	VkImageViewCreateInfo depthStencilView{};
+	depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	depthStencilView.format = m_PointShadowPassDepthFormat;
+	depthStencilView.flags = 0;
+	depthStencilView.subresourceRange = {};
+	depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	if (m_PointShadowPassDepthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
+		depthStencilView.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+	}
+	depthStencilView.subresourceRange.baseMipLevel = 0;
+	depthStencilView.subresourceRange.levelCount = 1;
+	depthStencilView.subresourceRange.baseArrayLayer = 0;
+	depthStencilView.subresourceRange.layerCount = 1;
+
+	if (vkCreateImage(m_Device.device(), &imageCreateInfo, nullptr, &m_PointShadowPass.pointShadowMapImage.image))
+	{
+		throw std::runtime_error("failed to create Point Shadow depth stencil attachment!");
+	}
+
+	VkMemoryRequirements memReqs;
+	vkGetImageMemoryRequirements(m_Device.device(), m_PointShadowPass.pointShadowMapImage.image, &memReqs);
+
+	VkMemoryAllocateInfo memAlloc{};
+	memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memAlloc.allocationSize = memReqs.size;
+	memAlloc.memoryTypeIndex = m_Device.findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	if (vkAllocateMemory(m_Device.device(), &memAlloc, nullptr, &m_PointShadowPass.pointShadowMapImage.mem))
+	{
+		throw std::runtime_error("failed to create Point Shadow mem alloc for Map Image");
+	}
+
+	if (vkBindImageMemory(m_Device.device(), m_PointShadowPass.pointShadowMapImage.image, m_PointShadowPass.pointShadowMapImage.mem, 0))
+	{
+		throw std::runtime_error("failed to create Point Shadow bind image memory");
+	}
+
+	VkImageAspectFlags temp = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	m_Device.TransitionImageLayout(
+		layoutCmd,
+		m_PointShadowPass.pointShadowMapImage.image,
+		VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+		VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+
+	m_Device.endSingleTimeCommands(layoutCmd);
+
+	depthStencilView.image = m_PointShadowPass.pointShadowMapImage.image;
+	if (vkCreateImageView(m_Device.device(), &depthStencilView, nullptr, &m_PointShadowPass.pointShadowMapImage.view))
+	{
+		throw std::runtime_error("failed to create Point Shadow depth stencil image viewy");
+	}
+
+
+	VkImageView attachments[2];
+	attachments[1] = m_PointShadowPass.pointShadowMapImage.view;
+
+	VkFramebufferCreateInfo fbufCreateInfo{};
+	fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	fbufCreateInfo.renderPass = m_PointShadowPass.renderPass;
+	fbufCreateInfo.attachmentCount = 2;
+	fbufCreateInfo.pAttachments = attachments;
+	fbufCreateInfo.width = m_PointShadowPass.width;
+	fbufCreateInfo.height = m_PointShadowPass.height;
+	fbufCreateInfo.layers = 1;
 	for (int i = 0; i < MAX_POINT_LIGHTS; i++)
 	{
-		m_PointShadowPass.width = m_PointShadowMapSize;
-		m_PointShadowPass.height = m_PointShadowMapSize;
-
-		// Color attachment
-		VkImageCreateInfo imageCreateInfo{};
-		imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageCreateInfo.format = m_PointShadowPassImageFormat;
-		imageCreateInfo.extent.width = m_PointShadowPass.width;
-		imageCreateInfo.extent.height = m_PointShadowPass.height;
-		imageCreateInfo.extent.depth = 1;
-		imageCreateInfo.mipLevels = 1;
-		imageCreateInfo.arrayLayers = 1;
-		imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		// Image of the framebuffer is blit source
-		imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-		imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		VkImageViewCreateInfo colorImageView{};
-		colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		colorImageView.format = m_PointShadowPassImageFormat;
-		colorImageView.flags = 0;
-		colorImageView.subresourceRange = {};
-		colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		colorImageView.subresourceRange.baseMipLevel = 0;
-		colorImageView.subresourceRange.levelCount = 1;
-		colorImageView.subresourceRange.baseArrayLayer = 0;
-		colorImageView.subresourceRange.layerCount = 1;
-
-		VkCommandBuffer layoutCmd = m_Device.beginSingleTimeCommands();
-
-		// Depth stencil attachment
-		imageCreateInfo.format = m_PointShadowPassDepthFormat;
-		imageCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-
-		VkImageViewCreateInfo depthStencilView{};
-		depthStencilView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		depthStencilView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		depthStencilView.format = m_PointShadowPassDepthFormat;
-		depthStencilView.flags = 0;
-		depthStencilView.subresourceRange = {};
-		depthStencilView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		if (m_PointShadowPassDepthFormat >= VK_FORMAT_D16_UNORM_S8_UINT) {
-			depthStencilView.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-		}
-		depthStencilView.subresourceRange.baseMipLevel = 0;
-		depthStencilView.subresourceRange.levelCount = 1;
-		depthStencilView.subresourceRange.baseArrayLayer = 0;
-		depthStencilView.subresourceRange.layerCount = 1;
-
-		if (vkCreateImage(m_Device.device(), &imageCreateInfo, nullptr, &m_PointShadowPass.pointShadowMapImage.image))
-		{
-			throw std::runtime_error("failed to create Point Shadow depth stencil attachment!");
-		}
-
-		VkMemoryRequirements memReqs;
-		vkGetImageMemoryRequirements(m_Device.device(), m_PointShadowPass.pointShadowMapImage.image, &memReqs);
-
-		VkMemoryAllocateInfo memAlloc{};
-		memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		memAlloc.allocationSize = memReqs.size;
-		memAlloc.memoryTypeIndex = m_Device.findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		if (vkAllocateMemory(m_Device.device(), &memAlloc, nullptr, &m_PointShadowPass.pointShadowMapImage.mem))
-		{
-			throw std::runtime_error("failed to create Point Shadow mem alloc for Map Image");
-		}
-
-		if (vkBindImageMemory(m_Device.device(), m_PointShadowPass.pointShadowMapImage.image, m_PointShadowPass.pointShadowMapImage.mem, 0))
-		{
-			throw std::runtime_error("failed to create Point Shadow bind image memory");
-		}
-
-		VkImageAspectFlags temp = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		m_Device.TransitionImageLayout(
-			layoutCmd,
-			m_PointShadowPass.pointShadowMapImage.image,
-			VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-
-		m_Device.endSingleTimeCommands(layoutCmd);
-
-		depthStencilView.image = m_PointShadowPass.pointShadowMapImage.image;
-		if (vkCreateImageView(m_Device.device(), &depthStencilView, nullptr, &m_PointShadowPass.pointShadowMapImage.view))
-		{
-			throw std::runtime_error("failed to create Point Shadow depth stencil image viewy");
-		}
-
-
-		VkImageView attachments[2];
-		attachments[1] = m_PointShadowPass.pointShadowMapImage.view;
-
-		VkFramebufferCreateInfo fbufCreateInfo{};
-		fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		fbufCreateInfo.renderPass = m_PointShadowPass.renderPass;
-		fbufCreateInfo.attachmentCount = 2;
-		fbufCreateInfo.pAttachments = attachments;
-		fbufCreateInfo.width = m_PointShadowPass.width;
-		fbufCreateInfo.height = m_PointShadowPass.height;
-		fbufCreateInfo.layers = 1;
-
 		for (uint32_t j = 0; j < 6; j++)
 		{
 			attachments[0] = m_PointShadowCubeMapImageViews[i][j];
@@ -1335,6 +1328,7 @@ void SimpleRenderSystem::UpdateSpotShadowMaps(uint32_t lightIndex, FrameInfo fra
 
 void SimpleRenderSystem::RenderSpotShadowPass(FrameInfo frameInfo, GlobalUBO& ubo)
 {
+	PROFILE_FUNCTION();
 	VkViewport viewport{};
 	viewport.width = (float)m_SpotShadowPass.width;
 	viewport.height = (float)m_SpotShadowPass.height;

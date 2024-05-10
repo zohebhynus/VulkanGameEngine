@@ -9,3 +9,9 @@ bin-int/
 **.vcxproj.filters
 **.vcxproj.user
 **.csproj
+
+# Logs
+Runtime.json
+
+# exe
+VulkanGameEngine.exe

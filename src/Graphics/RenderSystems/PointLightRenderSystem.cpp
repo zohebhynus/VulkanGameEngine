@@ -1,4 +1,5 @@
 #include "PointLightRenderSystem.h"
+#include "../../Instrumentation.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -72,7 +73,7 @@ void PointLightRenderSystem::Update(FrameInfo& frameInfo, GlobalUBO& ubo)
 
 void PointLightRenderSystem::Render(FrameInfo& frameInfo, GlobalUBO& globalUBO)
 {
-
+	PROFILE_FUNCTION();
 	//sort lights
 	std::map<float, Entity> sorted;
 	for (auto& entity : m_Entities)

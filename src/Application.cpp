@@ -6,6 +6,7 @@
 #include "Graphics/Buffer.h"
 #include "Graphics/CameraSystem.h"
 #include "KeyboardControl.h"
+#include "Instrumentation.h"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -142,6 +143,7 @@ void Application::Run()
 
 	while (!m_AppWindow.ShouldClose())
 	{
+        PROFILE_SCOPE("RunLoop");
 		glfwPollEvents();
 
         auto newTime = std::chrono::high_resolution_clock::now();
@@ -241,100 +243,104 @@ void Application::LoadGameObjects()
 {
 
     // SPONZA SCENE
-    Entity sponza = m_Coord.CreateEntity();
-    m_Coord.AddComponent<ECSTransformComponent>(sponza, ECSTransformComponent{ glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(glm::radians(180.0f), glm::radians(90.0f),0.0f), glm::vec3(0.01f)});
-    m_Coord.AddComponent<ModelComponent>(sponza, ModelComponent{ m_Models[2]});
+    //Entity sponza = m_Coord.CreateEntity();
+    //m_Coord.AddComponent<ECSTransformComponent>(sponza, ECSTransformComponent{ glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(glm::radians(180.0f), glm::radians(90.0f),0.0f), glm::vec3(0.01f)});
+    //m_Coord.AddComponent<ModelComponent>(sponza, ModelComponent{ m_Models[2]});
 
-    Entity cube = m_Coord.CreateEntity();
-    m_Coord.AddComponent<ECSTransformComponent>(cube, ECSTransformComponent{ glm::vec3(-4.0f, -6.5f, 6.0f), glm::vec3(0.0f), glm::vec3(0.5f) });
-    m_Coord.AddComponent<ModelComponent>(cube, ModelComponent{ m_Models[0]});
+    //Entity cube = m_Coord.CreateEntity();
+    //m_Coord.AddComponent<ECSTransformComponent>(cube, ECSTransformComponent{ glm::vec3(-4.0f, -6.5f, 6.0f), glm::vec3(0.0f), glm::vec3(0.5f) });
+    //m_Coord.AddComponent<ModelComponent>(cube, ModelComponent{ m_Models[0]});
 
-    Entity cubeTwo = m_Coord.CreateEntity();
-    m_Coord.AddComponent<ECSTransformComponent>(cubeTwo, ECSTransformComponent{ glm::vec3(4.5f, -6.5f, -6.0f), glm::vec3(0.0f), glm::vec3(0.5f) });
-    m_Coord.AddComponent<ModelComponent>(cubeTwo, ModelComponent{ m_Models[0] });
+    //Entity cubeTwo = m_Coord.CreateEntity();
+    //m_Coord.AddComponent<ECSTransformComponent>(cubeTwo, ECSTransformComponent{ glm::vec3(4.5f, -6.5f, -6.0f), glm::vec3(0.0f), glm::vec3(0.5f) });
+    //m_Coord.AddComponent<ModelComponent>(cubeTwo, ModelComponent{ m_Models[0] });
 
-    Entity pointLight = m_Coord.CreateEntity();
-    m_Coord.AddComponent<ECSTransformComponent>(pointLight, ECSTransformComponent{ glm::vec3(glm::vec4(-1.0f, -7.0f, 5.0f, 1.0f)) });
-    m_Coord.AddComponent<LightObjectComponent>(pointLight, LightObjectComponent::PointLight(cyan, 30.0f, 0.1f));
+    //Entity pointLight = m_Coord.CreateEntity();
+    //m_Coord.AddComponent<ECSTransformComponent>(pointLight, ECSTransformComponent{ glm::vec3(glm::vec4(-1.0f, -7.0f, 5.0f, 1.0f)) });
+    //m_Coord.AddComponent<LightObjectComponent>(pointLight, LightObjectComponent::PointLight(cyan, 30.0f, 0.1f));
 
-    Entity spotLight = m_Coord.CreateEntity();
-    m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(5.0f, -9.0f, -6.0f, 1.0f)) });
-    m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(red, 30.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.8978f, 0.853f));
+    //Entity spotLight = m_Coord.CreateEntity();
+    //m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(5.0f, -9.0f, -6.0f, 1.0f)) });
+    //m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(red, 30.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.8978f, 0.853f));
 
 
 
     // TEST SCENE FOR POINT LIGHTS AND SPOT LIGHTS DEBUGGING
-    //glm::vec3 displacement = glm::vec3(11.0f, 0.0f, 11.0f);
-    //uint32_t rows = 1;
-    //uint32_t coloumns = 1;
-    //float roomSize = 5.0f;
+    glm::vec3 displacement = glm::vec3(11.0f, 0.0f, 11.0f);
+    uint32_t rows = 1;
+    uint32_t coloumns = 3;
+    float roomSize = 5.0f;
 
-    //for (int i = 0; i < rows; i++)
-    //{
-    //    for (int j = 0; j < coloumns; j++)
-    //    {
-    //        glm::vec3 mod = glm::vec3(displacement.x * j, displacement.y, displacement.z * i);
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < coloumns; j++)
+        {
+            glm::vec3 mod = glm::vec3(displacement.x * j, displacement.y, displacement.z * i);
+
+            Entity cube = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(cube, ECSTransformComponent{ glm::vec3(-3.0f, -2.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f) });
+            m_Coord.AddComponent<ModelComponent>(cube, ModelComponent{ m_Models[0]});
+
+            Entity cubeTwo = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(cubeTwo, ECSTransformComponent{ glm::vec3(2.0f, -1.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.5f) });
+            m_Coord.AddComponent<ModelComponent>(cubeTwo, ModelComponent{ m_Models[0] });
+
+            //Entity sponza = m_Coord.CreateEntity();
+            //m_Coord.AddComponent<ECSTransformComponent>(sponza, ECSTransformComponent{ glm::vec3(0.0f, -1.0f, 0.0f) + mod, glm::vec3(glm::radians(180.0f), glm::radians(90.0f),0.0f), glm::vec3(0.01f)});
+            //m_Coord.AddComponent<ModelComponent>(sponza, ModelComponent{ m_Models[2]});
+
+            //Room with boxes
+            Entity ground = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(ground, ECSTransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
+            m_Coord.AddComponent<ModelComponent>(ground, ModelComponent{ m_Models[0] });
+
+            Entity left_wall = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(left_wall, ECSTransformComponent{ glm::vec3(-1.0f * roomSize, -1.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
+            m_Coord.AddComponent<ModelComponent>(left_wall, ModelComponent{ m_Models[0] });
+
+            Entity right_wall = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(right_wall, ECSTransformComponent{ glm::vec3(1.0f * roomSize, -1.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
+            m_Coord.AddComponent<ModelComponent>(right_wall, ModelComponent{ m_Models[0] });
+
+            Entity back_wall = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(back_wall, ECSTransformComponent{ glm::vec3(0.0f, -1.0f * roomSize, 1.0f * roomSize) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 1.0f * roomSize, 0.05f) });
+            m_Coord.AddComponent<ModelComponent>(back_wall, ModelComponent{ m_Models[0] });
+
+            Entity ceiling_wall = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(ceiling_wall, ECSTransformComponent{ glm::vec3(0.0f, -2.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
+            m_Coord.AddComponent<ModelComponent>(ceiling_wall, ModelComponent{ m_Models[0] });
 
 
 
-    //        Entity cubeTwo = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(cubeTwo, ECSTransformComponent{ glm::vec3(2.0f, -1.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.5f) });
-    //        m_Coord.AddComponent<ModelComponent>(cubeTwo, ModelComponent{ m_Models[0] });
+            // Coords
+            Entity x_line = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(x_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
+            m_Coord.AddComponent<ModelComponent>(x_line, ModelComponent{ m_Models[0] });
 
+            Entity y_line = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(y_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f, 0.0f, glm::radians(90.0f)), glm::vec3(5.0f, 0.05f, 0.05f) });
+            m_Coord.AddComponent<ModelComponent>(y_line, ModelComponent{ m_Models[0] });
 
+            Entity z_line = m_Coord.CreateEntity();
+            m_Coord.AddComponent<ECSTransformComponent>(z_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f, glm::radians(90.0f), 0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
+            m_Coord.AddComponent<ModelComponent>(z_line, ModelComponent{ m_Models[0] });
 
-    //        //Room with boxes
-    //        Entity ground = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(ground, ECSTransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
-    //        m_Coord.AddComponent<ModelComponent>(ground, ModelComponent{ m_Models[0] });
+            //Lights
+            //if (i == 0 && j == 0)
+            //{
+            //    Entity pointLight = m_Coord.CreateEntity();
+            //    m_Coord.AddComponent<ECSTransformComponent>(pointLight, ECSTransformComponent{ glm::vec3(glm::vec4(-3.0f, -3.0f, -2.0f, 1.0f)) + mod });
+            //    m_Coord.AddComponent<LightObjectComponent>(pointLight, LightObjectComponent::PointLight(white, 10.0f, 0.1f));
+            //}
 
-    //        Entity left_wall = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(left_wall, ECSTransformComponent{ glm::vec3(-1.0f * roomSize, -1.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
-    //        m_Coord.AddComponent<ModelComponent>(left_wall, ModelComponent{ m_Models[0] });
-
-    //        Entity right_wall = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(right_wall, ECSTransformComponent{ glm::vec3(1.0f * roomSize, -1.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
-    //        m_Coord.AddComponent<ModelComponent>(right_wall, ModelComponent{ m_Models[0] });
-
-    //        Entity back_wall = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(back_wall, ECSTransformComponent{ glm::vec3(0.0f, -1.0f * roomSize, 1.0f * roomSize) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 1.0f * roomSize, 0.05f) });
-    //        m_Coord.AddComponent<ModelComponent>(back_wall, ModelComponent{ m_Models[0] });
-
-    //        Entity ceiling_wall = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(ceiling_wall, ECSTransformComponent{ glm::vec3(0.0f, -2.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
-    //        m_Coord.AddComponent<ModelComponent>(ceiling_wall, ModelComponent{ m_Models[0] });
-
-
-
-    //        // Coords
-    //        Entity x_line = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(x_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
-    //        m_Coord.AddComponent<ModelComponent>(x_line, ModelComponent{ m_Models[0] });
-
-    //        Entity y_line = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(y_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f, 0.0f, glm::radians(90.0f)), glm::vec3(5.0f, 0.05f, 0.05f) });
-    //        m_Coord.AddComponent<ModelComponent>(y_line, ModelComponent{ m_Models[0] });
-
-    //        Entity z_line = m_Coord.CreateEntity();
-    //        m_Coord.AddComponent<ECSTransformComponent>(z_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f, glm::radians(90.0f), 0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
-    //        m_Coord.AddComponent<ModelComponent>(z_line, ModelComponent{ m_Models[0] });
-
-    //        //Lights
-    //        //if (i == 0 && j == 0)
-    //        {
-    //          /*  Entity pointLight = m_Coord.CreateEntity();
-    //            m_Coord.AddComponent<ECSTransformComponent>(pointLight, ECSTransformComponent{ glm::vec3(glm::vec4(-2.0f, -3.0f, -2.0f, 1.0f)) + mod });
-    //            m_Coord.AddComponent<LightObjectComponent>(pointLight, LightObjectComponent::PointLight(white, 30.0f, 0.1f));*/
-    //        }
-
-    //        //if (i == 0 && j == 0)
-    //        {
-    //            Entity spotLight = m_Coord.CreateEntity();
-    //            m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(1.0f, -6.0f, 0.0f, 1.0f)) + mod });
-    //            m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(white, 30.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.6978f, 0.653f));
-    //        }
-    //    }
-    //}
+            //if (i == 0 && j == 0)
+            {
+                Entity spotLight = m_Coord.CreateEntity();
+                m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(1.0f, -6.0f, 0.0f, 1.0f)) + mod });
+                m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(white, 10.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.8978f, 0.853f));
+            }
+        }
+    }
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)

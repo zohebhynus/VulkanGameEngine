@@ -1,6 +1,7 @@
 
 
 #include "Application.h"
+#include "Instrumentation.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -12,7 +13,9 @@ int main()
 
     try 
     {
+        PROFILE_BEGIN("Runtime", "Runtime.json");
         App.Run();
+        PROFILE_END();
     }
     catch (const std::exception& e)
     {

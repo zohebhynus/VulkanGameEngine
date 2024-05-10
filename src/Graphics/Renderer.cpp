@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "../Instrumentation.h"
 
 #include <array>
 #include <cassert>
@@ -45,6 +46,7 @@ VkCommandBuffer Renderer::BeginFrame()
 
 void Renderer::EndFrame()
 {
+	PROFILE_FUNCTION();
 	assert(isFrameStarted && "Cannot call End Frame while frame is not in progress");
 
 	auto commandBuffer = GetCurrentCommandBuffer();
@@ -104,6 +106,7 @@ void Renderer::BeginSwapChainRenderPass(VkCommandBuffer commandBuffer)
 
 void Renderer::EndSwapChainRenderPass(VkCommandBuffer commandBuffer)
 {
+	PROFILE_FUNCTION();
 	assert(isFrameStarted && "Cannot call End Swap Chain Render Pass while frame is not in progress");
 	assert(commandBuffer == GetCurrentCommandBuffer() && "Can't End render pass on a command buffer from a different frame");
 

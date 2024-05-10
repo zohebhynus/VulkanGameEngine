@@ -161,7 +161,7 @@ private:
 
 	PointShadowPass m_PointShadowPass{};
 	std::array<std::array<VkImageView, 6>, MAX_POINT_LIGHTS> m_PointShadowCubeMapImageViews{};
-	int m_PointLightCount = 0;
+	uint32_t m_PointLightCount = 0;
 	int m_FaceCount = 0;
 
 	//Spot Shadow variables

@@ -273,20 +273,26 @@ vec3 PointLightCalculation(vec3 albedoValue, float metallicValue, float roughnes
     float currentDepth = length(fragToLight);
 
     float shadow = 0.0;
-    float bias = 0.00001f;
-    int samples = 20;
-    float viewDistance = length(globalUbo.cameraData.inverseViewMatrix[3].xyz - fragModelWorldSpace);
-    float diskRadius = (1.0 + (viewDistance / 25.0f)) / 25.0;
-    for(int i = 0; i < samples; ++i)
     {
-        vec4 loc =  vec4(fragToLight + ((gridSamplingDisk[i]/10) * diskRadius), lightCount);
-        float closestDepth = texture(pointShadowCubeMap, loc).r;
-        //closestDepth *= 100.0f;   // undo mapping [0;1]
-        if(currentDepth - bias > closestDepth)
-            shadow += 1.0;
-    }
+         float bias = 0.0f;
+//        int samples = 5;
+//        float viewDistance = length(globalUbo.cameraData.inverseViewMatrix[3].xyz - fragModelWorldSpace);
+//        float diskRadius = (1.0 + (viewDistance / 25.0f)) / 25.0;
+//        for(int i = 0; i < samples; ++i)
+//        {
+//            vec4 loc =  vec4(fragToLight + ((gridSamplingDisk[i])/10 * diskRadius), lightCount);
+//            float closestDepth = texture(pointShadowCubeMap, loc).r;
+//            //closestDepth *= 100.0f;   // undo mapping [0;1]
+//            if(currentDepth - bias > closestDepth)
+//               shadow += 1.0;
+//        }
+//
+//        shadow /= float(samples); 
+        float sampledDist = texture(pointShadowCubeMap, vec4(fragToLight, lightCount)).r;
 
-    shadow /= float(samples); 
+	    // Check if fragment is in shadow
+        shadow = (currentDepth <= sampledDist + bias) ? 0.0 : 1.0;
+    }
 
     return Lo * (1.0f - shadow);
 }
