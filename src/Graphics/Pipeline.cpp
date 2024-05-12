@@ -1,5 +1,5 @@
 #include "Pipeline.h"
-#include "../ModelTwo.h"
+#include "../Model.h"
 
 #include <fstream>
 #include <iostream>

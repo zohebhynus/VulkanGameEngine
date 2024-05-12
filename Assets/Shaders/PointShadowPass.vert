@@ -25,7 +25,6 @@ layout(location = 4) in vec2 uv;
 // VERTEX OUTPUT
 /////////////////////////////////////////////////////////////////////////////////////
 layout (location = 0) out vec4 fragPos;
-layout (location = 1) out float liCount;
 /////////////////////////////////////////////////////////////////////////////////////
 // VERTEX OUTPUT
 /////////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +116,6 @@ mat4 BuildTranslationMatrix(vec3 position)
 
 void main()
 {
-	liCount = push.lightCount;
 	mat4 final_face_view = pointShadowPassUBO.view[push.faceCount] * BuildTranslationMatrix(-globalUbo.pointLights[push.lightCount].position.xyz);
 	fragPos = push.modelMatrix * vec4(position, 1.0f);
 	gl_Position = final_face_view * fragPos;

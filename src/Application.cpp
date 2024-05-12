@@ -5,7 +5,6 @@
 #include "Graphics/Camera.h"
 #include "Graphics/Buffer.h"
 #include "Graphics/CameraSystem.h"
-#include "KeyboardControl.h"
 #include "Instrumentation.h"
 
 #define GLM_FORCE_RADIANS
@@ -137,8 +136,6 @@ void Application::Run()
     float limit = 300.0f;
 
    
-
-
     //glfwSetKeyCallback(m_AppWindow.GetWindow(), key_callback);
 
 	while (!m_AppWindow.ShouldClose())
@@ -157,9 +154,7 @@ void Application::Run()
         float aspect = m_Renderer.GetAspectRatio();
         cameraSystem.SetPerspectiveProjectionEditorCam(glm::radians(60.0f), aspect, 0.1f, 100.0f);
         
-        
-
-
+       
 
 		if (auto commandBuffer = m_Renderer.BeginFrame())
 		{
@@ -167,50 +162,47 @@ void Application::Run()
             FrameInfo frameInfo{ frameIndex, frameTime, commandBuffer, cameraSystem, globalDescriptorSets[frameIndex]};
 
 
+           /* if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_L) == GLFW_PRESS)
+            {
+                pointLightRenderSystem->point.x -= 0.1f;
+                if (pointLightRenderSystem->point.x < -limit)
+                    pointLightRenderSystem->point.x = -limit;
+            }
 
-            //std::cout << pointLightRenderSystem->point.x << " , " << pointLightRenderSystem->point.y << " , " << pointLightRenderSystem->point.z << " , " << "\n";
+            if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_J) == GLFW_PRESS)
+            {
+                pointLightRenderSystem->point.x += 0.1f;
+                if (pointLightRenderSystem->point.x > limit)
+                    pointLightRenderSystem->point.x = limit;
+            }
 
-            //if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_L) == GLFW_PRESS)
-            //{
-            //    pointLightRenderSystem->point.x -= 0.1f;
-            //    if (pointLightRenderSystem->point.x < -limit)
-            //        pointLightRenderSystem->point.x = -limit;
-            //}
+            if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_I) == GLFW_PRESS)
+            {
+                pointLightRenderSystem->point.z += 0.1f;
+                if (pointLightRenderSystem->point.z > limit)
+                    pointLightRenderSystem->point.z = limit;
+            }
 
-            //if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_J) == GLFW_PRESS)
-            //{
-            //    pointLightRenderSystem->point.x += 0.1f;
-            //    if (pointLightRenderSystem->point.x > limit)
-            //        pointLightRenderSystem->point.x = limit;
-            //}
+            if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_K) == GLFW_PRESS)
+            {
+                pointLightRenderSystem->point.z -= 0.1f;
+                if (pointLightRenderSystem->point.z < -limit)
+                    pointLightRenderSystem->point.z = -limit;
+            }
 
-            //if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_I) == GLFW_PRESS)
-            //{
-            //    pointLightRenderSystem->point.z += 0.1f;
-            //    if (pointLightRenderSystem->point.z > limit)
-            //        pointLightRenderSystem->point.z = limit;
-            //}
+            if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_O) == GLFW_PRESS)
+            {
+                pointLightRenderSystem->point.y -= 0.1f;
+                if (pointLightRenderSystem->point.y < -limit)
+                    pointLightRenderSystem->point.y = -limit;
+            }
 
-            //if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_K) == GLFW_PRESS)
-            //{
-            //    pointLightRenderSystem->point.z -= 0.1f;
-            //    if (pointLightRenderSystem->point.z < -limit)
-            //        pointLightRenderSystem->point.z = -limit;
-            //}
-
-            //if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_O) == GLFW_PRESS)
-            //{
-            //    pointLightRenderSystem->point.y -= 0.1f;
-            //    if (pointLightRenderSystem->point.y < -limit)
-            //        pointLightRenderSystem->point.y = -limit;
-            //}
-
-            //if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_U) == GLFW_PRESS)
-            //{
-            //    pointLightRenderSystem->point.y += 0.1f;
-            //    if (pointLightRenderSystem->point.y > limit)
-            //        pointLightRenderSystem->point.y = limit;
-            //}
+            if (glfwGetKey(m_AppWindow.GetWindow(), GLFW_KEY_U) == GLFW_PRESS)
+            {
+                pointLightRenderSystem->point.y += 0.1f;
+                if (pointLightRenderSystem->point.y > limit)
+                    pointLightRenderSystem->point.y = limit;
+            }*/
 
             // Update
             GlobalUBO ubo {};
@@ -242,7 +234,7 @@ void Application::Run()
 void Application::LoadGameObjects()
 {
 
-    // SPONZA SCENE
+    // SPONZA SCENE ///////////////////////////////////////////////////////////////////////////////
     //Entity sponza = m_Coord.CreateEntity();
     //m_Coord.AddComponent<ECSTransformComponent>(sponza, ECSTransformComponent{ glm::vec3(0.0f, -1.0f, 0.0f), glm::vec3(glm::radians(180.0f), glm::radians(90.0f),0.0f), glm::vec3(0.01f)});
     //m_Coord.AddComponent<ModelComponent>(sponza, ModelComponent{ m_Models[2]});
@@ -262,85 +254,78 @@ void Application::LoadGameObjects()
     //Entity spotLight = m_Coord.CreateEntity();
     //m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(5.0f, -9.0f, -6.0f, 1.0f)) });
     //m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(red, 30.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.8978f, 0.853f));
+    // SPONZA SCENE ///////////////////////////////////////////////////////////////////////////////
+
+    float groundSize = 40.0f;
+    Entity ground = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(ground, ECSTransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f), glm::vec3(1.0f * groundSize, 0.05f, 1.0f * groundSize) });
+    m_Coord.AddComponent<ModelComponent>(ground, ModelComponent{ m_Models[0] });
 
 
-
-    // TEST SCENE FOR POINT LIGHTS AND SPOT LIGHTS DEBUGGING
-    glm::vec3 displacement = glm::vec3(11.0f, 0.0f, 11.0f);
-    uint32_t rows = 1;
-    uint32_t coloumns = 3;
+    //Room
+    glm::vec3 roomDisplacement = glm::vec3(9.0f, -2.0f, 9.0f);
     float roomSize = 5.0f;
 
-    for (int i = 0; i < rows; i++)
+    Entity room_ground = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(room_ground, ECSTransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
+    m_Coord.AddComponent<ModelComponent>(room_ground, ModelComponent{ m_Models[0] });
+
+    Entity left_wall = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(left_wall, ECSTransformComponent{ glm::vec3(-1.0f * roomSize, -1.0f * roomSize, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
+    m_Coord.AddComponent<ModelComponent>(left_wall, ModelComponent{ m_Models[0] });
+
+    Entity right_wall = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(right_wall, ECSTransformComponent{ glm::vec3(1.0f * roomSize, -1.0f * roomSize, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
+    m_Coord.AddComponent<ModelComponent>(right_wall, ModelComponent{ m_Models[0] });
+
+    Entity back_wall = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(back_wall, ECSTransformComponent{ glm::vec3(0.0f, -1.0f * roomSize, 1.0f * roomSize) + roomDisplacement, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 1.0f * roomSize, 0.05f) });
+    m_Coord.AddComponent<ModelComponent>(back_wall, ModelComponent{ m_Models[0] });
+
+    Entity ceiling_wall = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(ceiling_wall, ECSTransformComponent{ glm::vec3(0.0f, -2.0f * roomSize, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
+    m_Coord.AddComponent<ModelComponent>(ceiling_wall, ModelComponent{ m_Models[0] });
+
+
+
+    //Room Cubes
+    Entity cube = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(cube, ECSTransformComponent{ glm::vec3(-3.0f, -2.0f, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(1.0f) });
+    m_Coord.AddComponent<ModelComponent>(cube, ModelComponent{ m_Models[0] });
+
+    Entity cubeTwo = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(cubeTwo, ECSTransformComponent{ glm::vec3(2.0f, -1.0f, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(0.5f) });
+    m_Coord.AddComponent<ModelComponent>(cubeTwo, ModelComponent{ m_Models[0] });
+
+
+    //Room Coords
+    Entity x_line = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(x_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + roomDisplacement, glm::vec3(0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
+    m_Coord.AddComponent<ModelComponent>(x_line, ModelComponent{ m_Models[0] });
+
+    Entity y_line = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(y_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + roomDisplacement, glm::vec3(0.0f, 0.0f, glm::radians(90.0f)), glm::vec3(5.0f, 0.05f, 0.05f) });
+    m_Coord.AddComponent<ModelComponent>(y_line, ModelComponent{ m_Models[0] });
+
+    Entity z_line = m_Coord.CreateEntity();
+    m_Coord.AddComponent<ECSTransformComponent>(z_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + roomDisplacement, glm::vec3(0.0f, glm::radians(90.0f), 0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
+    m_Coord.AddComponent<ModelComponent>(z_line, ModelComponent{ m_Models[0] });
+
+
+    //Room Point Lights
     {
-        for (int j = 0; j < coloumns; j++)
-        {
-            glm::vec3 mod = glm::vec3(displacement.x * j, displacement.y, displacement.z * i);
-
-            Entity cube = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(cube, ECSTransformComponent{ glm::vec3(-3.0f, -2.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f) });
-            m_Coord.AddComponent<ModelComponent>(cube, ModelComponent{ m_Models[0]});
-
-            Entity cubeTwo = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(cubeTwo, ECSTransformComponent{ glm::vec3(2.0f, -1.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.5f) });
-            m_Coord.AddComponent<ModelComponent>(cubeTwo, ModelComponent{ m_Models[0] });
-
-            //Entity sponza = m_Coord.CreateEntity();
-            //m_Coord.AddComponent<ECSTransformComponent>(sponza, ECSTransformComponent{ glm::vec3(0.0f, -1.0f, 0.0f) + mod, glm::vec3(glm::radians(180.0f), glm::radians(90.0f),0.0f), glm::vec3(0.01f)});
-            //m_Coord.AddComponent<ModelComponent>(sponza, ModelComponent{ m_Models[2]});
-
-            //Room with boxes
-            Entity ground = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(ground, ECSTransformComponent{ glm::vec3(0.0f, 0.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
-            m_Coord.AddComponent<ModelComponent>(ground, ModelComponent{ m_Models[0] });
-
-            Entity left_wall = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(left_wall, ECSTransformComponent{ glm::vec3(-1.0f * roomSize, -1.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
-            m_Coord.AddComponent<ModelComponent>(left_wall, ModelComponent{ m_Models[0] });
-
-            Entity right_wall = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(right_wall, ECSTransformComponent{ glm::vec3(1.0f * roomSize, -1.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(0.05f, 1.0f * roomSize, 1.0f * roomSize) });
-            m_Coord.AddComponent<ModelComponent>(right_wall, ModelComponent{ m_Models[0] });
-
-            Entity back_wall = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(back_wall, ECSTransformComponent{ glm::vec3(0.0f, -1.0f * roomSize, 1.0f * roomSize) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 1.0f * roomSize, 0.05f) });
-            m_Coord.AddComponent<ModelComponent>(back_wall, ModelComponent{ m_Models[0] });
-
-            Entity ceiling_wall = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(ceiling_wall, ECSTransformComponent{ glm::vec3(0.0f, -2.0f * roomSize, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(1.0f * roomSize, 0.05f, 1.0f * roomSize) });
-            m_Coord.AddComponent<ModelComponent>(ceiling_wall, ModelComponent{ m_Models[0] });
-
-
-
-            // Coords
-            Entity x_line = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(x_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
-            m_Coord.AddComponent<ModelComponent>(x_line, ModelComponent{ m_Models[0] });
-
-            Entity y_line = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(y_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f, 0.0f, glm::radians(90.0f)), glm::vec3(5.0f, 0.05f, 0.05f) });
-            m_Coord.AddComponent<ModelComponent>(y_line, ModelComponent{ m_Models[0] });
-
-            Entity z_line = m_Coord.CreateEntity();
-            m_Coord.AddComponent<ECSTransformComponent>(z_line, ECSTransformComponent{ glm::vec3(0.0f, -5.0f, 0.0f) + mod, glm::vec3(0.0f, glm::radians(90.0f), 0.0f), glm::vec3(5.0f, 0.05f, 0.05f) });
-            m_Coord.AddComponent<ModelComponent>(z_line, ModelComponent{ m_Models[0] });
-
-            //Lights
-            //if (i == 0 && j == 0)
-            //{
-            //    Entity pointLight = m_Coord.CreateEntity();
-            //    m_Coord.AddComponent<ECSTransformComponent>(pointLight, ECSTransformComponent{ glm::vec3(glm::vec4(-3.0f, -3.0f, -2.0f, 1.0f)) + mod });
-            //    m_Coord.AddComponent<LightObjectComponent>(pointLight, LightObjectComponent::PointLight(white, 10.0f, 0.1f));
-            //}
-
-            //if (i == 0 && j == 0)
-            {
-                Entity spotLight = m_Coord.CreateEntity();
-                m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(1.0f, -6.0f, 0.0f, 1.0f)) + mod });
-                m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(white, 10.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.8978f, 0.853f));
-            }
-        }
+        Entity pointLight = m_Coord.CreateEntity();
+        m_Coord.AddComponent<ECSTransformComponent>(pointLight, ECSTransformComponent{ glm::vec3(glm::vec4(-3.0f, -6.0f, -2.0f, 1.0f)) + roomDisplacement });
+        m_Coord.AddComponent<LightObjectComponent>(pointLight, LightObjectComponent::PointLight(blue, 30.0f, 0.1f));
     }
+
+    //Room Spot Lights
+    {
+        Entity spotLight = m_Coord.CreateEntity();
+        m_Coord.AddComponent<ECSTransformComponent>(spotLight, ECSTransformComponent{ glm::vec3(glm::vec4(3.0f, -6.0f, 1.0f, 1.0f)) + roomDisplacement });
+        m_Coord.AddComponent<LightObjectComponent>(spotLight, LightObjectComponent::SpotLight(red, 50.0f, 0.1f, glm::vec3(0.0f, 1.0f, 0.0f), 0.8978f, 0.853f));
+    }
+
 }
 
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)

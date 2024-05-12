@@ -1014,7 +1014,7 @@ void SimpleRenderSystem::PrepareSpotShadowMaps()
 	imageCreateInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+	//imageCreateInfo.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
 	VkMemoryAllocateInfo memAllocInfo{};
 	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1105,7 +1105,7 @@ void SimpleRenderSystem::PrepareSpotShadowMaps()
 	view.subresourceRange.layerCount = 1;
 	view.image = m_SpotShadowMaps.cubeMapImage.image;
 
-	for (int i = 0; i < MAX_SPOT_LIGHTS; i++)
+	for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++)
 	{
 		view.subresourceRange.baseArrayLayer = i;
 		if (vkCreateImageView(m_Device.device(), &view, nullptr, &m_SpotShadowPass.imageViews[i]))
@@ -1342,7 +1342,6 @@ void SimpleRenderSystem::RenderSpotShadowPass(FrameInfo frameInfo, GlobalUBO& ub
 	scissor.offset.x = 0;
 	scissor.offset.y = 0;
 	vkCmdSetScissor(frameInfo.commandBuffer, 0, 1, &scissor);
-
 
 	for (uint32_t i = 0; i < ubo.numOfActiveSpotLights; i++)
 	{

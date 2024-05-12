@@ -2,8 +2,7 @@
 #include "Window.h"
 #include "Graphics/Renderer.h"
 #include "Graphics/Descriptor.h"
-#include "ModelTwo.h"
-#include "GameObject.h"
+#include "Model.h"
 
 #include <memory>
 #include <vector>

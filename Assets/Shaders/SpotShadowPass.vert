@@ -25,7 +25,6 @@ layout(location = 4) in vec2 uv;
 // VERTEX OUTPUT
 /////////////////////////////////////////////////////////////////////////////////////
 layout (location = 0) out vec4 fragPos;
-layout (location = 1) out float liCount;
 /////////////////////////////////////////////////////////////////////////////////////
 // VERTEX OUTPUT
 /////////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +100,6 @@ layout(push_constant) uniform Push
 
 void main()
 {
-	liCount = push.lightCount;
 	fragPos = push.modelMatrix * vec4(position, 1.0f);
 	gl_Position = spotShadowPassUBO.lightProjection * fragPos;
 }

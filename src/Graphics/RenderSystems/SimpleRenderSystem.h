@@ -2,7 +2,6 @@
 
 #include "../Device.h"
 #include "../FrameInfo.h"
-#include "../../GameObject.h"
 #include "../Pipeline.h"
 #include "../Camera.h"
 #include "../../Components.h"

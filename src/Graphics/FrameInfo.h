@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CameraSystem.h"
-#include "../GameObject.h"
 #include "Descriptor.h"
 
 #include "vulkan/vulkan.h"

@@ -41,10 +41,10 @@ Worked on this project to implment different graphic techniques using Vulkan to 
 
 ## Planned Work
 
-- Premake/Cmake solution for building project files
+- ~~Premake/Cmake solution for building project files~~
 - Serialization to load and unload scenes
 - Particle system and Instanced Drawing
-- Profiling to improve performance
-- fix shadow artifacts for multiple lights
+- ~~Profiling to improve performance~~ (Need to optimize still)
+- ~~fix shadow artifacts for multiple lights~~ (Due light index being corrupted in shader. Fixed)
 - Forward Plus rendering using compute shader (1000+ lights)
 - Physics Engine

@@ -19,7 +19,7 @@ private:
 
 	Device& m_Device;
 
-	int m_Width, m_Height, m_MipLevels;
+	int m_Width, m_Height, m_MipLevels, m_LayerCount;
 
 	VkImage m_Image;
 	VkDeviceMemory m_ImageMemory;

@@ -12,7 +12,7 @@
 
 #include <glm/glm/gtc/matrix_transform.hpp>
 
-#include "ModelTwo.h"
+#include "Model.h"
 #include "Graphics/Texture.h"
 
 

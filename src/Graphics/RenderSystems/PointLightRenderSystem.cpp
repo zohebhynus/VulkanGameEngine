@@ -53,12 +53,21 @@ void PointLightRenderSystem::Update(FrameInfo& frameInfo, GlobalUBO& ubo)
 		// copy light data to ubo
 		if (lightObj.isPoint)
 		{
+
+			//if (pointLightIndex == 0)
+			//{
+			//	transform.position = point;
+			//}
 			ubo.pointLights[pointLightIndex].position = glm::vec4(transform.position, 1.0f);
 			ubo.pointLights[pointLightIndex].color = glm::vec4(lightObj.lightColor, lightObj.lightIntensity);
 			pointLightIndex++;
 		}
 		else
 		{
+			//if (spotLightIndex == 0)
+			//{
+			//	transform.position = point;
+			//}
 			ubo.spotLights[spotLightIndex].position = glm::vec4(transform.position, 1.0f);
 			ubo.spotLights[spotLightIndex].color = glm::vec4(lightObj.lightColor, lightObj.lightIntensity);
 			ubo.spotLights[spotLightIndex].direction = glm::vec4(lightObj.lightDirection, 1.0f);
