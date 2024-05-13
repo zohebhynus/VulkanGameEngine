@@ -20,9 +20,9 @@ Worked on this project to implment different graphic techniques using Vulkan to 
 
 - Model Loading using tinygltf
 - BRDF Lighting and Shadow Mapping
-  - Directional Lighting
+  - Cascaded Directional Lighting
   - Point Lights
-  - Spot Lights
+  - Spot Lights (issues with cascaded shadows)
 
 ## Images
 
@@ -46,5 +46,6 @@ Worked on this project to implment different graphic techniques using Vulkan to 
 - Particle system and Instanced Drawing
 - ~~Profiling to improve performance~~ (Need to optimize still)
 - ~~fix shadow artifacts for multiple lights~~ (Due light index being corrupted in shader. Fixed)
+- ~~Cascaded Shadow Map~~
 - Forward Plus rendering using compute shader (1000+ lights)
 - Physics Engine
