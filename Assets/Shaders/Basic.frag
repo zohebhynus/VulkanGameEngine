@@ -6,6 +6,8 @@
 #define MAX_POINT_LIGHTS 10
 #define MAX_SPOT_LIGHTS 10
 
+#define CASCADE_SHADOW_MAP_COUNT 4
+
 const float epsilon = 0.00001;
 const float PI = 3.14159265359;
 
@@ -17,6 +19,12 @@ const vec3 gridSamplingDisk[20] = vec3[]
    vec3(1, 0,  1), vec3(-1,  0,  1), vec3( 1,  0, -1), vec3(-1, 0, -1),
    vec3(0, 1,  1), vec3( 0, -1,  1), vec3( 0, -1, -1), vec3( 0, 1, -1)
 );
+
+const mat4 biasMat = mat4( 
+  0.5, 0.0, 0.0, 0.0,
+  0.0, 0.5, 0.0, 0.0,
+  0.0, 0.0, 1.0, 0.0,
+  0.5, 0.5, 0.0, 1.0 );
 /////////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 /////////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +37,7 @@ layout(location = 1) in vec3 fragModelWorldSpace; // outEyePos
 layout(location = 2) in vec3 fragNormalWorldSpace;
 layout(location = 3) in vec3 fragTangent;
 layout(location = 4) in vec2 fragUV;
-layout(location = 5) in vec4 fragDirLightWordSpace;
+layout(location = 5) in vec4 fragViewPos;
 
 layout(location = 7) in vec3 fragModelPos; //outWorldPos
 layout(location = 8) in vec3 fragLightVec; //outLightVec
@@ -96,9 +104,21 @@ layout(set = 0, binding = 1) uniform sampler2D DefaultTexture;
 /////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////
+// DESCRIPTOR SET 1 : DIRECTIONAL LIGHT PROJECTION FOR CASCADED SHADOW MAP
+/////////////////////////////////////////////////////////////////////////////////////
+layout(set = 1, binding = 0) uniform CascadedShadowPassUBO
+{
+	mat4 lightProjection[CASCADE_SHADOW_MAP_COUNT];
+    vec4 cascadeSplits;
+}cascadedShadowPassUBO;
+/////////////////////////////////////////////////////////////////////////////////////
+// DESCRIPTOR SET 1 : DIRECTIONAL LIGHT PROJECTION FOR CASCADED SHADOW MAP
+/////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////////////////////////////////////////////////////////////////
 // DESCRIPTOR SET 2 : DIRECTIONAL LIGHT SHADOW MAP
 /////////////////////////////////////////////////////////////////////////////////////
-layout(set = 2, binding = 0) uniform sampler2D shadowMap;
+layout(set = 2, binding = 0) uniform sampler2DArray cascadedShadowMap;
 /////////////////////////////////////////////////////////////////////////////////////
 // DESCRIPTOR SET 2 : DIRECTIONAL LIGHT SHADOW MAP
 /////////////////////////////////////////////////////////////////////////////////////
@@ -326,28 +346,52 @@ vec3 DirectionalLightCalculation(vec3 albedoValue, float metallicValue, float ro
 
     //shadow calculation
 	float shadow = 0.0f;
-	vec4 lightCoords = fragDirLightWordSpace / fragDirLightWordSpace.w;
-	if(lightCoords.z > 0.0 && lightCoords.z < 1.0 && lightCoords.x > 0.0 && lightCoords.x < 1.0 && lightCoords.y > 0.0 && lightCoords.y < 1.0) // included x and y coord
-    //if(lightCoords.z < 1.0f)
-	{
-		float currentDepth = lightCoords.z;
-        
-        float bias = 0.00001f; // Bias value
+    //cascaded shadow calculation
+    	// Get cascade index for the current fragment's view position
+	uint cascadeIndex = 0;
+	for(uint i = 0; i < CASCADE_SHADOW_MAP_COUNT - 1; ++i) {
+		if(-fragViewPos.z < cascadedShadowPassUBO.cascadeSplits[i]) {	
+			cascadeIndex = i + 1;
+		}
+	}
 
-		int sampleRadius = 20;
-		vec2 pixelSize = 1.0 / textureSize(shadowMap, 0);
+    vec4 shadowCoord = (biasMat * cascadedShadowPassUBO.lightProjection[cascadeIndex] * vec4(fragModelWorldSpace, 1.0f));
+    shadowCoord = shadowCoord / shadowCoord.w;
+     if(shadowCoord.z > -1.0f && shadowCoord.z < 1.0)
+	{
+		float currentDepth = shadowCoord.z;
+        
+        float bias = 0.000001f; // Bias value
+
+		int sampleRadius = 3;
+		vec3 pixelSize =  1.0 / textureSize(cascadedShadowMap, 0);
 
 		for(int y = -sampleRadius; y <= sampleRadius; y++)
 		{
 			for(int x = -sampleRadius; x <= sampleRadius; x++)
 			{
-				float closestDepth = texture(shadowMap, lightCoords.xy + vec2(x, y) * pixelSize/10).r;
+				float closestDepth = texture(cascadedShadowMap, vec3(shadowCoord.xy + vec2(x, y) * pixelSize.xy/10, cascadeIndex)).r;
 				if ( currentDepth - bias > closestDepth) // included bias check
                     shadow += 1.0f;
 			}    
 		}
 		shadow /= pow((sampleRadius * 2 + 1), 2);
 	}
+//    debug cascade shadows
+//    switch(cascadeIndex) {
+//			case 0 : 
+//				result.rgb *= vec3(1.0f, 0.25f, 0.25f);
+//				break;
+//			case 1 : 
+//				result.rgb *= vec3(0.25f, 1.0f, 0.25f);
+//				break;
+//			case 2 : 
+//				result.rgb *= vec3(0.25f, 0.25f, 1.0f);
+//				break;
+//			case 3 : 
+//				result.rgb *= vec3(1.0f, 1.0f, 0.25f);
+//				break;
+//		}
 
     return result * (1.0f - shadow);
 }

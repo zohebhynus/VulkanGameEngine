@@ -27,6 +27,8 @@ public:
 	void SetOrthographicProjectionEditorCam(float left, float right, float top, float bottom, float near, float far);
 	void SetPerspectiveProjectionEditorCam(float fovy, float aspect, float near, float far);
 
+	//void SetNearAndFar(float near, float far);
+
 	void UpdateEditorCameraTransform(glm::vec3 position, glm::vec3 rotation);
 
 	void SetEditorCamera(bool active = true) { m_IsEditorActive = active; }
@@ -37,6 +39,8 @@ public:
 	const glm::mat4& GetProjection() const { return m_ProjectionMatrix; }
 	const glm::mat4& GetView() const { return m_ViewMatrix; }
 	const glm::mat4& GetInverseView() const { return m_InverseViewMatrix; }
+	const float GetNear() const { return m_Near; }
+	const float GetFar() const { return m_Far; }
 private:
 	void SetViewYXZ(glm::vec3 position, glm::vec3 rotation);
 	void SetViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up = glm::vec3(0.0f, -1.0f, 0.0f));
@@ -52,4 +56,7 @@ private:
 	KeyMappings keys{};
 	float m_MoveSpeed{ 5.0f };
 	float m_LookSpeed{ 2.0f };
+
+	float m_Near = 0.1f;
+	float m_Far  = 100.0f;
 };

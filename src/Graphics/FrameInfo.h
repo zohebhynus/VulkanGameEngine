@@ -26,7 +26,7 @@ struct SpotLight
 struct DirectionalLight
 {
 	glm::vec4 direction{ -5.0f, 30.0f, -2.0f, 0.06f }; // direction x, y, z, w=ambientStrength
-	glm::vec4 color{ 1.0f, 1.0f, 1.0f , 1.0f };        // color r=x, g=y, b=z, a=intensity
+	glm::vec4 color{ 1.0f, 1.0f, 1.0f , 0.7f };        // color r=x, g=y, b=z, a=intensity
 };
 
 struct EditorCameraData

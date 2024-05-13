@@ -34,6 +34,12 @@ struct SpotShadowPassPushConstantData
 	int lightCount{};
 };
 
+struct CascadedShadowPassPushConstantData
+{
+	glm::mat4 modelMatrix{ 1.0f };
+	int cascadeIndex{};
+};
+
 
 SimpleRenderSystem::SimpleRenderSystem(Device& device, VkRenderPass renderPass, std::vector<VkDescriptorSetLayout> setLayouts, DescriptorPool& descriptorPool) :m_Device(device)
 {
@@ -47,7 +53,8 @@ SimpleRenderSystem::SimpleRenderSystem(Device& device, VkRenderPass renderPass, 
 	PrepareSpotShadowPassRenderPass();
 	PrepareSpotShadowPassFramebuffers();
 
-	PrepareShadowPassFramebuffer();
+	//PrepareShadowPassFramebuffer();
+	PrepareCascadeShadowPass();
 
 	createPipelineLayout(setLayouts, descriptorPool);
 	createPipeline(renderPass);
@@ -110,7 +117,7 @@ void SimpleRenderSystem::RenderShadowPass(FrameInfo frameInfo, GlobalUBO& global
 	// Depth bias (and slope) are used to avoid shadowing artifacts
 // Constant depth bias factor (always applied)
 	float depthBiasConstant = 1.25f;
-	// Slope depth bias factor, applied depending on polygon's slope
+		// Slope depth bias factor, applied depending on polygon's slope
 	float depthBiasSlope = 1.75f;
 
 	// Set depth bias (aka "Polygon offset")
@@ -129,6 +136,59 @@ void SimpleRenderSystem::RenderShadowPass(FrameInfo frameInfo, GlobalUBO& global
 	RenderGameObjects(frameInfo.commandBuffer, m_ShadowPassPipelineLayout, PushConstantType::MAIN, globSet.size(), false);
 
 	vkCmdEndRenderPass(frameInfo.commandBuffer);
+}
+
+void SimpleRenderSystem::RenderCascadedShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO)
+{
+	UpdateCascades(globalUBO);
+
+	m_CascadedShadowPassBuffer->writeToBuffer(&m_CascadedShadowPass.ubo);
+	m_CascadedShadowPassBuffer->flush();
+
+	VkClearValue clearValues[1];
+	clearValues[0].depthStencil = { 1.0f, 0 };
+
+	VkRenderPassBeginInfo renderPassBeginInfo{};
+	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassBeginInfo.renderPass = m_CascadedShadowPass.renderPass;
+	renderPassBeginInfo.renderArea.offset.x = 0;
+	renderPassBeginInfo.renderArea.offset.y = 0;
+	renderPassBeginInfo.renderArea.extent.width = m_CascadedShadowMapSize;
+	renderPassBeginInfo.renderArea.extent.height = m_CascadedShadowMapSize;
+	renderPassBeginInfo.clearValueCount = 1;
+	renderPassBeginInfo.pClearValues = clearValues;
+
+	VkViewport viewport{};
+	viewport.width = (float)m_CascadedShadowMapSize;
+	viewport.height = (float)m_CascadedShadowMapSize;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(frameInfo.commandBuffer, 0, 1, &viewport);
+
+	VkRect2D scissor{};
+	scissor.extent.width = m_CascadedShadowMapSize;
+	scissor.extent.height = m_CascadedShadowMapSize;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	vkCmdSetScissor(frameInfo.commandBuffer, 0, 1, &scissor);
+
+	std::vector<VkDescriptorSet> globSet = { frameInfo.globalDescriptorSet, m_CascadedShadowPassDescriptorSet };
+	vkCmdBindDescriptorSets(frameInfo.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_CascadedShadowPassPipelineLayout, 0, globSet.size(), globSet.data(), 0, nullptr);
+
+	// One pass per cascade
+	// The layer that this pass renders to is defined by the cascade's image view (selected via the cascade's descriptor set)
+	for (uint32_t j = 0; j < CASCADE_SHADOW_MAP_COUNT; j++) 
+	{
+		renderPassBeginInfo.framebuffer = m_CascadedShadowPass.cascades[j].frameBuffer;
+		vkCmdBeginRenderPass(frameInfo.commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		m_CascadeIndex = j;
+
+		m_CascadedShadowPassPipeline->bind(frameInfo.commandBuffer);
+
+		RenderGameObjects(frameInfo.commandBuffer, m_CascadedShadowPassPipelineLayout, PushConstantType::CASCADEDSHADOW, globSet.size(), false);
+		vkCmdEndRenderPass(frameInfo.commandBuffer);
+	}
 }
 
 void SimpleRenderSystem::RenderPointShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO)
@@ -157,14 +217,7 @@ void SimpleRenderSystem::RenderPointShadowPass(FrameInfo frameInfo, GlobalUBO& g
 			updateCubeFace(face, frameInfo, globalUBO);
 		}
 	}
-	//idiot = true;
-	//for (uint32_t face = 0; face < 6; face++) {
-	//	m_FaceCount = face;
-	//	updateCubeFace(face, frameInfo, globalUBO);
-	//}
-	//idiot = false;
 }
-
 
 
 void SimpleRenderSystem::RenderMainPass(FrameInfo frameInfo)
@@ -178,7 +231,8 @@ void SimpleRenderSystem::RenderMainPass(FrameInfo frameInfo)
 	std::vector<VkDescriptorSet> globSet = 
 	{ 
 		frameInfo.globalDescriptorSet, 
-		 m_ShadowPassDescriptorSet, m_ShadowMapDescriptorSet,
+		//m_ShadowPassDescriptorSet, m_ShadowMapDescriptorSet,
+		m_CascadedShadowPassDescriptorSet, m_CascadedShadowMapDescriptorSet,
 		m_PointShadowMapDescriptorSet,
 		m_SpotShadowMapDescriptorSet
 	};
@@ -237,6 +291,19 @@ void SimpleRenderSystem::RenderGameObjects(VkCommandBuffer commandBuffer, VkPipe
 				sizeof(data),
 				&data);
 		}
+		else if (type == SimpleRenderSystem::CASCADEDSHADOW)
+		{
+			CascadedShadowPassPushConstantData data{};
+			data.modelMatrix = modelMatrix(transform.position, transform.rotation, transform.scale);
+			data.cascadeIndex = m_CascadeIndex;
+
+			vkCmdPushConstants(
+				commandBuffer,
+				pipelineLayout,
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+				sizeof(data),
+				&data);
+		}
 		model.model->Bind(commandBuffer);
 		model.model->Draw(commandBuffer, pipelineLayout, setCount, renderMaterial);
 	}
@@ -248,6 +315,7 @@ void SimpleRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout>
 	std::vector<VkDescriptorSetLayout> shadowPassSetLayouts;
 	std::vector<VkDescriptorSetLayout> pointShadowPassSetLayouts;
 	std::vector<VkDescriptorSetLayout> spotShadowPassSetLayouts;
+	std::vector<VkDescriptorSetLayout> cascadedShadowPassSetLayouts;
 
 	mainSetLayouts.push_back(setLayouts[0]);
 	
@@ -259,6 +327,8 @@ void SimpleRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout>
 	
 
 	spotShadowPassSetLayouts.push_back(setLayouts[0]);
+
+	cascadedShadowPassSetLayouts.push_back(setLayouts[0]);
 	
 
 	VkPushConstantRange mainPushConstantRange{};
@@ -276,45 +346,85 @@ void SimpleRenderSystem::createPipelineLayout(std::vector<VkDescriptorSetLayout>
 	spotShadowPushConstantRange.offset = 0;
 	spotShadowPushConstantRange.size = sizeof(SpotShadowPassPushConstantData);
 
+	VkPushConstantRange cascadedShadowPushConstantRange{};
+	cascadedShadowPushConstantRange.stageFlags = { VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT };
+	cascadedShadowPushConstantRange.offset = 0;
+	cascadedShadowPushConstantRange.size = sizeof(CascadedShadowPassPushConstantData);
+
 
 	// ShadowPass Pipeline Layout
-	auto shadowPassUBOLayout = DescriptorSetLayout::Builder(m_Device)
+	//auto shadowPassUBOLayout = DescriptorSetLayout::Builder(m_Device)
+	//	.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+	//	.build();
+	//auto bufferInfo = m_ShadowPassBuffer->descriptorInfo();
+	//DescriptorWriter(*shadowPassUBOLayout, descriptorPool)
+	//	.writeBuffer(0, &bufferInfo)
+	//	.build(m_ShadowPassDescriptorSet);
+	//shadowPassSetLayouts.push_back(shadowPassUBOLayout->getDescriptorSetLayout());
+	////shadowPassSetLayouts.push_back(setLayouts[1]);
+
+	//VkPipelineLayoutCreateInfo shadowPassPipelineLayoutInfo{};
+	//shadowPassPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	//shadowPassPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(shadowPassSetLayouts.size());
+	//shadowPassPipelineLayoutInfo.pSetLayouts = shadowPassSetLayouts.data();
+	//shadowPassPipelineLayoutInfo.pushConstantRangeCount = 1;
+	//shadowPassPipelineLayoutInfo.pPushConstantRanges = &mainPushConstantRange;
+
+	//if (vkCreatePipelineLayout(m_Device.device(), &shadowPassPipelineLayoutInfo, nullptr, &m_ShadowPassPipelineLayout) != VK_SUCCESS)
+	//{
+	//	throw std::runtime_error("Failed to create SimpleRenderSystem:ShadowPassPipelineLayout");
+	//}
+
+	// Cascaded Shadow Pass
+	auto cascadedShadowPassUBOLayout = DescriptorSetLayout::Builder(m_Device)
 		.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build();
-	auto bufferInfo = m_ShadowPassBuffer->descriptorInfo();
-	DescriptorWriter(*shadowPassUBOLayout, descriptorPool)
-		.writeBuffer(0, &bufferInfo)
-		.build(m_ShadowPassDescriptorSet);
-	shadowPassSetLayouts.push_back(shadowPassUBOLayout->getDescriptorSetLayout());
-	//shadowPassSetLayouts.push_back(setLayouts[1]);
+	auto bufferInfoCas = m_CascadedShadowPassBuffer->descriptorInfo();
+	DescriptorWriter(*cascadedShadowPassUBOLayout, descriptorPool)
+		.writeBuffer(0, &bufferInfoCas)
+		.build(m_CascadedShadowPassDescriptorSet);
+	cascadedShadowPassSetLayouts.push_back(cascadedShadowPassUBOLayout->getDescriptorSetLayout());
 
-	VkPipelineLayoutCreateInfo shadowPassPipelineLayoutInfo{};
-	shadowPassPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	shadowPassPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(shadowPassSetLayouts.size());
-	shadowPassPipelineLayoutInfo.pSetLayouts = shadowPassSetLayouts.data();
-	shadowPassPipelineLayoutInfo.pushConstantRangeCount = 1;
-	shadowPassPipelineLayoutInfo.pPushConstantRanges = &mainPushConstantRange;
+	VkPipelineLayoutCreateInfo cascadedShadowPassPipelineLayoutInfo{};
+	cascadedShadowPassPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	cascadedShadowPassPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(cascadedShadowPassSetLayouts.size());
+	cascadedShadowPassPipelineLayoutInfo.pSetLayouts = cascadedShadowPassSetLayouts.data();
+	cascadedShadowPassPipelineLayoutInfo.pushConstantRangeCount = 1;
+	cascadedShadowPassPipelineLayoutInfo.pPushConstantRanges = &mainPushConstantRange;
 
-	if (vkCreatePipelineLayout(m_Device.device(), &shadowPassPipelineLayoutInfo, nullptr, &m_ShadowPassPipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_Device.device(), &cascadedShadowPassPipelineLayoutInfo, nullptr, &m_CascadedShadowPassPipelineLayout) != VK_SUCCESS)
 	{
-		throw std::runtime_error("Failed to create SimpleRenderSystem:ShadowPassPipelineLayout");
+		throw std::runtime_error("Failed to create SimpleRenderSystem:CascadedShadowPassPipelineLayout");
 	}
-
 
 	// Main Pipeline Layout
 		// Shadow Map descriptorSet
-	auto shadowMapDescriptorSetLayout = DescriptorSetLayout::Builder(m_Device)
+	//auto shadowMapDescriptorSetLayout = DescriptorSetLayout::Builder(m_Device)
+	//	.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+	//	.build();
+	//VkDescriptorImageInfo shadowMapDescriptor{};
+	//shadowMapDescriptor.sampler = m_ShadowPass.shadowMapSampler;
+	//shadowMapDescriptor.imageView = m_ShadowPass.shadowMapImage.view;
+	//shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+	//DescriptorWriter(*shadowMapDescriptorSetLayout, descriptorPool)
+	//	.writeImage(0, &shadowMapDescriptor)
+	//	.build(m_ShadowMapDescriptorSet);
+	//mainSetLayouts.push_back(shadowPassUBOLayout->getDescriptorSetLayout());
+	//mainSetLayouts.push_back(shadowMapDescriptorSetLayout->getDescriptorSetLayout());
+
+		// Cascaded Shadow Map descriptorSet
+	auto cascadedShadowMapDescriptorSetLayout = DescriptorSetLayout::Builder(m_Device)
 		.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 		.build();
-	VkDescriptorImageInfo shadowMapDescriptor{};
-	shadowMapDescriptor.sampler = m_ShadowPass.shadowMapSampler;
-	shadowMapDescriptor.imageView = m_ShadowPass.shadowMapImage.view;
-	shadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-	DescriptorWriter(*shadowMapDescriptorSetLayout, descriptorPool)
-		.writeImage(0, &shadowMapDescriptor)
-		.build(m_ShadowMapDescriptorSet);
-	mainSetLayouts.push_back(shadowPassUBOLayout->getDescriptorSetLayout());
-	mainSetLayouts.push_back(shadowMapDescriptorSetLayout->getDescriptorSetLayout());
+	VkDescriptorImageInfo cascadedshadowMapDescriptor{};
+	cascadedshadowMapDescriptor.sampler = m_CascadedDepthMapObject.sampler;
+	cascadedshadowMapDescriptor.imageView = m_CascadedDepthMapObject.view;
+	cascadedshadowMapDescriptor.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+	DescriptorWriter(*cascadedShadowMapDescriptorSetLayout, descriptorPool)
+		.writeImage(0, &cascadedshadowMapDescriptor)
+		.build(m_CascadedShadowMapDescriptorSet);
+	mainSetLayouts.push_back(cascadedShadowPassUBOLayout->getDescriptorSetLayout());
+	mainSetLayouts.push_back(cascadedShadowMapDescriptorSetLayout->getDescriptorSetLayout());
 
 		// Point Shadow Map descriptorSet
 	auto pointShadowMapDescriptorSetLayout = DescriptorSetLayout::Builder(m_Device)
@@ -439,22 +549,34 @@ void SimpleRenderSystem::createPipeline(VkRenderPass renderpass)
 	m_SpotShadowPassPipeline = std::make_unique<Pipeline>(m_Device, "Assets/Shaders/SpotShadowPass.vert.spv", "Assets/Shaders/SpotShadowPass.frag.spv", pipelineConfig);
 
 	// Shadow Pass Pipeline
-	assert(m_ShadowPassPipelineLayout != nullptr && "Cannot create SimpleRenderSystem:ShadowPassPipeline before ShadowPassPipelineLayout");
+	//assert(m_ShadowPassPipelineLayout != nullptr && "Cannot create SimpleRenderSystem:ShadowPassPipeline before ShadowPassPipelineLayout");
+
+	//pipelineConfig.colorBlendInfo.attachmentCount = 0;
+	//pipelineConfig.rasterizationInfo.depthBiasEnable = VK_TRUE;
+
+	//pipelineConfig.dynamicStateEnables.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
+	//pipelineConfig.dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+	//pipelineConfig.dynamicStateCreateInfo.pDynamicStates = pipelineConfig.dynamicStateEnables.data();
+	//pipelineConfig.dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(pipelineConfig.dynamicStateEnables.size());
+
+	//pipelineConfig.renderPass = m_ShadowPass.renderPass;
+	//pipelineConfig.pipelineLayout = m_ShadowPassPipelineLayout;
+	//pipelineConfig.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	//pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+
+	//m_ShadowPassPipeline = std::make_unique<Pipeline>(m_Device, "Assets/Shaders/ShadowPass.vert.spv", "Assets/Shaders/ShadowPass.frag.spv", pipelineConfig);
+
+	// Cascaded Shadow Pass Pipeline
+	assert(m_CascadedShadowPassPipelineLayout != nullptr && "Cannot create SimpleRenderSystem:CascadedShadowPassPipeline before CascadedShadowPassPipelineLayout");
 
 	pipelineConfig.colorBlendInfo.attachmentCount = 0;
-	pipelineConfig.rasterizationInfo.depthBiasEnable = VK_TRUE;
 
-	pipelineConfig.dynamicStateEnables.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
-	pipelineConfig.dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	pipelineConfig.dynamicStateCreateInfo.pDynamicStates = pipelineConfig.dynamicStateEnables.data();
-	pipelineConfig.dynamicStateCreateInfo.dynamicStateCount = static_cast<uint32_t>(pipelineConfig.dynamicStateEnables.size());
-
-	pipelineConfig.renderPass = m_ShadowPass.renderPass;
-	pipelineConfig.pipelineLayout = m_ShadowPassPipelineLayout;
+	pipelineConfig.renderPass = m_CascadedShadowPass.renderPass;
+	pipelineConfig.pipelineLayout = m_CascadedShadowPassPipelineLayout;
 	pipelineConfig.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 	pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 
-	m_ShadowPassPipeline = std::make_unique<Pipeline>(m_Device, "Assets/Shaders/ShadowPass.vert.spv", "Assets/Shaders/ShadowPass.frag.spv", pipelineConfig);
+	m_CascadedShadowPassPipeline = std::make_unique<Pipeline>(m_Device, "Assets/Shaders/CascadedShadowPass.vert.spv", "Assets/Shaders/CascadedShadowPass.frag.spv", pipelineConfig);
 }
 
 void SimpleRenderSystem::PrepareShadowPassRenderpass()
@@ -608,13 +730,22 @@ void SimpleRenderSystem::PrepareShadowPassFramebuffer()
 void SimpleRenderSystem::PrepareShadowPassUBO()
 {
 	//Direction Light Shadow Pass
-	m_ShadowPassBuffer = std::make_unique<Buffer>(
+	//m_ShadowPassBuffer = std::make_unique<Buffer>(
+	//	m_Device,
+	//	sizeof(ShadowPassUBO),
+	//	1,
+	//	VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+	//	VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	//m_ShadowPassBuffer->map();
+
+	// Cascaded Shadow Map
+	m_CascadedShadowPassBuffer = std::make_unique<Buffer>(
 		m_Device,
-		sizeof(ShadowPassUBO),
+		sizeof(CascadedShadowPassUBO),
 		1,
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	m_ShadowPassBuffer->map();
+	m_CascadedShadowPassBuffer->map();
 
 	//Point Light Shadow Pass
 	m_PointShadowPassBuffer = std::make_unique<Buffer>(
@@ -678,12 +809,231 @@ void SimpleRenderSystem::PrepareShadowPassUBO()
 
 void SimpleRenderSystem::UpdateShadowPassBuffer(GlobalUBO& globalUBO)
 {
-	glm::mat4 orthgonalProjection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, 0.1f, 100.0f);
+	glm::mat4 orthgonalProjection = glm::ortho(-30.0f, 30.0f, -30.0f, 30.0f, 0.1f, 100.0f);
 	glm::mat4 lightView = glm::lookAt(glm::vec3(-globalUBO.directionalLightData.direction), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	m_ShadowPassUBO.lightProjection = orthgonalProjection * lightView;
 
 	m_ShadowPassBuffer->writeToBuffer(&m_ShadowPassUBO);
 	m_ShadowPassBuffer->flush();
+}
+
+void SimpleRenderSystem::PrepareCascadeShadowPass()
+{
+	VkFormat depthFormat = m_Device.DepthFormat();
+
+	// Render Pass
+	VkAttachmentDescription attachmentDescription{};
+	attachmentDescription.format = depthFormat;
+	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+	attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+
+	VkAttachmentReference depthReference = {};
+	depthReference.attachment = 0;
+	depthReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 0;
+	subpass.pDepthStencilAttachment = &depthReference;
+
+	std::array<VkSubpassDependency, 2> dependencies;
+
+	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[0].dstSubpass = 0;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	dependencies[1].srcSubpass = 0;
+	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	dependencies[1].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+	VkRenderPassCreateInfo renderPassCreateInfo{};
+	renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassCreateInfo.attachmentCount = 1;
+	renderPassCreateInfo.pAttachments = &attachmentDescription;
+	renderPassCreateInfo.subpassCount = 1;
+	renderPassCreateInfo.pSubpasses = &subpass;
+	renderPassCreateInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+	renderPassCreateInfo.pDependencies = dependencies.data();
+
+	vkCreateRenderPass(m_Device.device(), &renderPassCreateInfo, nullptr, &m_CascadedShadowPass.renderPass);
+
+	// Main Depth Map Imag and View
+	VkImageCreateInfo imageInfo{};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = m_CascadedShadowMapSize;
+	imageInfo.extent.height = m_CascadedShadowMapSize;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = CASCADE_SHADOW_MAP_COUNT;
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.format = depthFormat;
+	imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	vkCreateImage(m_Device.device(), &imageInfo, nullptr, &m_CascadedDepthMapObject.image);
+	VkMemoryAllocateInfo memAlloc{};
+	memAlloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	VkMemoryRequirements memReqs;
+	vkGetImageMemoryRequirements(m_Device.device(), m_CascadedDepthMapObject.image, &memReqs);
+	memAlloc.allocationSize = memReqs.size;
+	memAlloc.memoryTypeIndex = m_Device.findMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	vkAllocateMemory(m_Device.device(), &memAlloc, nullptr, &m_CascadedDepthMapObject.mem);
+	vkBindImageMemory(m_Device.device(), m_CascadedDepthMapObject.image, m_CascadedDepthMapObject.mem, 0);
+
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+	viewInfo.format = depthFormat;
+	viewInfo.subresourceRange = {};
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = CASCADE_SHADOW_MAP_COUNT;
+	viewInfo.image = m_CascadedDepthMapObject.image;
+	vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &m_CascadedDepthMapObject.view);
+
+	// Framebuffer and image view per cascade
+	for (uint32_t i = 0; i < CASCADE_SHADOW_MAP_COUNT; i++) {
+		// Image view for this cascade's layer (inside the depth map)
+		// This view is used to render to that specific depth image layer
+		VkImageViewCreateInfo viewInfo{};
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+		viewInfo.format = depthFormat;
+		viewInfo.subresourceRange = {};
+		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		viewInfo.subresourceRange.baseMipLevel = 0;
+		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.baseArrayLayer = i;
+		viewInfo.subresourceRange.layerCount = 1;
+		viewInfo.image = m_CascadedDepthMapObject.image;
+		vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &m_CascadedShadowPass.cascades[i].view);
+		// Framebuffer
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = m_CascadedShadowPass.renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = &m_CascadedShadowPass.cascades[i].view;
+		framebufferInfo.width = m_CascadedShadowMapSize;
+		framebufferInfo.height = m_CascadedShadowMapSize;
+		framebufferInfo.layers = 1;
+		vkCreateFramebuffer(m_Device.device(), &framebufferInfo, nullptr, &m_CascadedShadowPass.cascades[i].frameBuffer);
+	}
+
+	// Sampler for caseded depth map reading
+	// Shared sampler for cascade depth reads
+	VkSamplerCreateInfo sampler{};
+	sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	sampler.magFilter = VK_FILTER_LINEAR;
+	sampler.minFilter = VK_FILTER_LINEAR;
+	sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	sampler.addressModeV = sampler.addressModeU;
+	sampler.addressModeW = sampler.addressModeU;
+	sampler.mipLodBias = 0.0f;
+	sampler.maxAnisotropy = 1.0f;
+	sampler.minLod = 0.0f;
+	sampler.maxLod = 1.0f;
+	sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	vkCreateSampler(m_Device.device(), &sampler, nullptr, &m_CascadedDepthMapObject.sampler);
+}
+
+void SimpleRenderSystem::UpdateCascades(GlobalUBO& ubo)
+{
+	float cascadeSplits[CASCADE_SHADOW_MAP_COUNT];
+
+	float nearClip = 0.1f;
+	float farClip = 100.0f;
+	float clipRange = farClip - nearClip;
+
+	float minZ = nearClip;
+	float maxZ = nearClip + clipRange;
+
+	float range = maxZ - minZ;
+	float ratio = maxZ / minZ;
+
+	float cascadeSplitLambda = 0.000001f;
+
+	// Calculate split depths based on view camera frustum
+	// Based on method presented in https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch10.html
+	for (uint32_t i = 0; i < CASCADE_SHADOW_MAP_COUNT; i++) {
+		float p = (i + 1) / static_cast<float>(CASCADE_SHADOW_MAP_COUNT);
+		float log = minZ * std::pow(ratio, p);
+		float uniform = minZ + range * p;
+		float d = cascadeSplitLambda * (log - uniform) + uniform;
+		cascadeSplits[i] = (d - nearClip) / clipRange;
+	}
+
+	// Calculate orthographic projection matrix for each cascade
+	float lastSplitDist = 0.0;
+	for (uint32_t i = 0; i < CASCADE_SHADOW_MAP_COUNT; i++) {
+		float splitDist = cascadeSplits[i];
+
+		glm::vec3 frustumCorners[8] = {
+			glm::vec3(-1.0f,  1.0f, 0.0f),
+			glm::vec3(1.0f,  1.0f, 0.0f),
+			glm::vec3(1.0f, -1.0f, 0.0f),
+			glm::vec3(-1.0f, -1.0f, 0.0f),
+			glm::vec3(-1.0f,  1.0f,  1.0f),
+			glm::vec3(1.0f,  1.0f,  1.0f),
+			glm::vec3(1.0f, -1.0f,  1.0f),
+			glm::vec3(-1.0f, -1.0f,  1.0f),
+		};
+
+		// Project frustum corners into world space
+		glm::mat4 invCam = glm::inverse(ubo.cameraData.projectionMatrix * ubo.cameraData.viewMatrix);
+		for (uint32_t j = 0; j < 8; j++) {
+			glm::vec4 invCorner = invCam * glm::vec4(frustumCorners[j], 1.0f);
+			frustumCorners[j] = invCorner / invCorner.w;
+		}
+
+		for (uint32_t j = 0; j < 4; j++) {
+			glm::vec3 dist = frustumCorners[j + 4] - frustumCorners[j];
+			frustumCorners[j + 4] = frustumCorners[j] + (dist * splitDist);
+			frustumCorners[j] = frustumCorners[j] + (dist * lastSplitDist);
+		}
+
+		// Get frustum center
+		glm::vec3 frustumCenter = glm::vec3(0.0f);
+		for (uint32_t j = 0; j < 8; j++) {
+			frustumCenter += frustumCorners[j];
+		}
+		frustumCenter /= 8.0f;
+
+		float radius = 0.0f;
+		for (uint32_t j = 0; j < 8; j++) {
+			float distance = glm::length(frustumCorners[j] - frustumCenter);
+			radius = glm::max(radius, distance);
+		}
+		radius = std::ceil(radius * 16.0f) / 16.0f;
+
+		glm::vec3 maxExtents = glm::vec3(radius);
+		glm::vec3 minExtents = -maxExtents;
+
+		glm::vec3 lightDir = glm::normalize(ubo.directionalLightData.direction);
+		glm::mat4 lightViewMatrix = glm::lookAt(frustumCenter - lightDir * -minExtents.z, frustumCenter, glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::mat4 lightOrthoMatrix = glm::ortho(minExtents.x, maxExtents.x, minExtents.y, maxExtents.y, 0.0f, maxExtents.z - minExtents.z);
+
+		// Store split distance and matrix in cascade
+		m_CascadedShadowPass.ubo.splitDepths[i] = (nearClip + splitDist * clipRange) * -1.0f;
+		m_CascadedShadowPass.ubo.viewProjMats[i] = lightOrthoMatrix * lightViewMatrix;
+
+		lastSplitDist = cascadeSplits[i];
+	}
 }
 
 void SimpleRenderSystem::PreparePointShadowCubeMaps()

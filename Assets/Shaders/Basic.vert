@@ -6,6 +6,8 @@
 #define MAX_POINT_LIGHTS 10
 #define MAX_SPOT_LIGHTS 10
 
+#define CASCADE_SHADOW_MAP_COUNT 4
+
 const mat4 bias = mat4( 
   0.5, 0.0, 0.0, 0.0,
   0.0, 0.5, 0.0, 0.0,
@@ -36,7 +38,7 @@ layout(location = 2) out vec3 fragNormalWorldSpace;
 layout(location = 3) out vec3 fragTangent;
 layout(location = 4) out vec2 fragUV;
 
-layout(location = 5) out vec4 fragDirLightWordSpace;
+layout(location = 5) out vec4 fragViewPos;
 
 layout(location = 7) out vec3 fragModelPos; //outWorldPos
 layout(location = 8) out vec3 fragLightVec; //outLightVec
@@ -92,18 +94,6 @@ layout(set = 0, binding = 0) uniform GlobalUbo
 // DESCRIPTOR SET 0 : GLOBAL
 /////////////////////////////////////////////////////////////////////////////////////
 
-
-/////////////////////////////////////////////////////////////////////////////////////
-// DESCRIPTOR SET 1 : DIRECTIONAL LIGHT PROJECTION FOR SHADOW MAP
-/////////////////////////////////////////////////////////////////////////////////////
-layout(set = 1, binding = 0) uniform ShadowPassUBO
-{
-	mat4 lightProjection;
-}shadowPassUBO;
-/////////////////////////////////////////////////////////////////////////////////////
-// DESCRIPTOR SET 1 : DIRECTIONAL LIGHT PROJECTION FOR SHADOW MAP
-/////////////////////////////////////////////////////////////////////////////////////
-
 /////////////////////////////////////////////////////////////////////////////////////
 // DESCRIPTOR SET 4,1 : SPOT LIGHT PROJECTION FOR SHADOW MAP
 /////////////////////////////////////////////////////////////////////////////////////
@@ -140,7 +130,7 @@ void main()
 	fragTangent = mat3(push.normalMatrix) * tangent;
 	fragUV = uv;
 
-	fragDirLightWordSpace = bias * shadowPassUBO.lightProjection * modelWorldSpace;
+	fragViewPos = globalUbo.cameraData.viewMatrix * modelWorldSpace;
 
 	for(int i = 0; i < MAX_SPOT_LIGHTS; i++)
 	{

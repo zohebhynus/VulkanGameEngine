@@ -11,6 +11,8 @@
 #include <memory>
 #include <vector>
 
+#define CASCADE_SHADOW_MAP_COUNT 4
+
 class SimpleRenderSystem : public System
 {
 public:
@@ -19,7 +21,8 @@ public:
 	{
 		MAIN = 0,
 		POINTSHADOW = 1,
-		SPOTSHADOW = 2
+		SPOTSHADOW = 2,
+		CASCADEDSHADOW = 3
 	};
 
 	struct ShadowFrameBufferAttachment {
@@ -35,6 +38,34 @@ public:
 		VkSampler shadowMapSampler;
 		VkDescriptorImageInfo descriptor;
 	};
+
+	struct CascadedShadowPassUBO
+	{
+		std::array<glm::mat4, CASCADE_SHADOW_MAP_COUNT> viewProjMats;
+		std::array<float, CASCADE_SHADOW_MAP_COUNT> splitDepths;
+	};
+
+	struct Cascade
+	{
+		VkFramebuffer frameBuffer;
+		VkImageView view;
+	};
+
+	struct CascadedShadowPass
+	{
+		VkRenderPass renderPass;
+		std::array<Cascade, CASCADE_SHADOW_MAP_COUNT> cascades;
+		CascadedShadowPassUBO ubo;
+	};
+
+	struct CascadedDepthMap
+	{
+		VkImage image;
+		VkDeviceMemory mem;
+		VkImageView view;
+		VkSampler sampler;
+	};
+
 
 	struct ShadowPassUBO
 	{
@@ -88,6 +119,7 @@ public:
 	SimpleRenderSystem& operator=(const SimpleRenderSystem&) = delete;
 
 	void RenderShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO);
+	void RenderCascadedShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO);
 	void RenderPointShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO);
 	void RenderSpotShadowPass(FrameInfo frameInfo, GlobalUBO& globalUBO);
 	void RenderMainPass(FrameInfo frameInfo);
@@ -103,6 +135,9 @@ private:
 	void PrepareShadowPassRenderpass();
 	void PrepareShadowPassFramebuffer();
 	void UpdateShadowPassBuffer(GlobalUBO& globalUBO);
+
+	void PrepareCascadeShadowPass();
+	void UpdateCascades(GlobalUBO& ubo);
 
 	void PreparePointShadowCubeMaps();
 	void PreparePointShadowPassRenderPass();
@@ -123,6 +158,9 @@ private:
 
 	VkDescriptorSet m_ShadowMapDescriptorSet;
 
+	CascadedDepthMap m_CascadedDepthMapObject;
+	VkDescriptorSet m_CascadedShadowMapDescriptorSet;
+
 	TextureArray m_PointShadowCubeMaps{};
 	VkDescriptorSet m_PointShadowMapDescriptorSet;
 
@@ -138,13 +176,26 @@ private:
 	VkPipelineLayout m_ShadowPassPipelineLayout;
 
 	const VkFormat m_ShadowPassImageFormat{ VK_FORMAT_D16_UNORM };
-	const uint32_t m_ShadowMapSize{ 2048 };
+	const uint32_t m_ShadowMapSize{ 4096 };
 
 	ShadowPassUBO m_ShadowPassUBO;
 	std::unique_ptr<Buffer> m_ShadowPassBuffer;
 	VkDescriptorSet m_ShadowPassDescriptorSet;
 
 	ShadowPass m_ShadowPass{};
+
+	// Cascaded Shadow Map
+	std::unique_ptr<Pipeline> m_CascadedShadowPassPipeline;
+	VkPipelineLayout m_CascadedShadowPassPipelineLayout;
+
+	const uint32_t m_CascadedShadowMapSize{4096};
+
+	std::unique_ptr<Buffer> m_CascadedShadowPassBuffer;
+	VkDescriptorSet m_CascadedShadowPassDescriptorSet;
+
+	CascadedShadowPass m_CascadedShadowPass{};
+
+	int m_CascadeIndex = 0;
 
 	//Point Shadow variables
 	std::unique_ptr<Pipeline> m_PointShadowPassPipeline;

@@ -2,6 +2,9 @@
 
 void CameraSystem::SetOrthographicProjectionEditorCam(float left, float right, float top, float bottom, float near, float far)
 {
+	m_Near = near;
+	m_Far = far;
+
 	m_ProjectionMatrix = glm::mat4{ 1.0f };
 	m_ProjectionMatrix[0][0] = 2.f / (right - left);
 	m_ProjectionMatrix[1][1] = 2.f / (bottom - top);
@@ -14,6 +17,10 @@ void CameraSystem::SetOrthographicProjectionEditorCam(float left, float right, f
 void CameraSystem::SetPerspectiveProjectionEditorCam(float fovy, float aspect, float near, float far)
 {
 	assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+
+	m_Near = near;
+	m_Far = far;
+
 	const float tanHalfFovy = tan(fovy / 2.f);
 	m_ProjectionMatrix = glm::mat4{ 0.0f };
 	m_ProjectionMatrix[0][0] = 1.f / (aspect * tanHalfFovy);
@@ -22,6 +29,12 @@ void CameraSystem::SetPerspectiveProjectionEditorCam(float fovy, float aspect, f
 	m_ProjectionMatrix[2][3] = 1.f;
 	m_ProjectionMatrix[3][2] = -(far * near) / (far - near);
 }
+
+//void CameraSystem::SetNearAndFar(float near, float far)
+//{
+//	m_Near = near;
+//	m_Far = far;
+//}
 
 void CameraSystem::UpdateEditorCameraTransform(glm::vec3 position, glm::vec3 rotation)
 {
